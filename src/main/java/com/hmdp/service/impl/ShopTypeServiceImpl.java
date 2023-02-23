@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.json.JSONUtil;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.ShopType;
 import com.hmdp.mapper.ShopTypeMapper;
@@ -28,19 +29,31 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
     private StringRedisTemplate stringRedisTemplate;
     @Override
     public Result queryTypeList() {
-        // 1.从redis获取对应的值
-        List<String> shopTypeList = stringRedisTemplate.opsForList().range(SHOP_TYPE_LIST, 0, -1);
+        // 1.从redis获取对应的值，并将其转换为List<ShopType>
+        String shopListStr = stringRedisTemplate.opsForValue().get(SHOP_TYPE_LIST);
+//        log.debug("shopListStr:" + shopListStr);
+        List<ShopType> shopTypeList = JSONUtil.toList(shopListStr, ShopType.class);
+//        log.debug(shopTypeList.toString());
         // 2.判断是否为空
-        assert shopTypeList != null;
+
         if (!shopTypeList.isEmpty()) {
             // 3.不为空，则直接返回
-
             return Result.ok(shopTypeList);
         }
         // 4. 为空，继续查询数据库
         List<ShopType> typeList = query().orderByAsc("sort").list();
+        log.debug(typeList.toString());
+        // 5.如果数据库不存在内容，那就报错
+        if (typeList.isEmpty()) {
+            return Result.fail("未查询到店铺类型信息");
+        }
+        // 6.将list实体类转换为json
+        String jsonList = JSONUtil.toJsonStr(typeList);
+//        log.debug(jsonList);
+        // 7.存入redis中
+        stringRedisTemplate.opsForValue().set(SHOP_TYPE_LIST, jsonList);
 
-
+        return Result.ok(typeList);
 
     }
 }
